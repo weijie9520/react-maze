@@ -20,13 +20,13 @@ function getRandomDirection() {
 
 function depthTraversal(option) {
 	const { gridNum, start, end, grid } = option;
+	grid[start].isVisited = true;
 	if (start === end) {
 		grid[start].isRoute = true;
 		return endTag;
 	}
 	let isEnd = false;
 	const { direction } = grid[start];
-	grid[start].isVisited = true;
 	direction.forEach((item) => {
 		const nextGridIndex = getNextGridIndex(option, item);
 		if (nextGridIndex === false || grid[nextGridIndex].isVisited) return;
