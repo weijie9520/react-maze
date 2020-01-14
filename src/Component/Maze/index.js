@@ -1,10 +1,13 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { times, map } from 'lodash';
+import React, { useState, useEffect, useCallback, Component } from 'react';
+import { times, map, noop } from 'lodash';
 import './index.css';
 
 const endTag = 'End tag';
 const classNameList = [ '', 't', 'r', 'b', 'l' ];
 const contraryClassNameList = [ '', 'b', 'l', 't', 'r' ];
+
+let currentPathPoint = {};
+
 function getRandomDirection() {
 	const list = [ 1, 2, 3, 4 ];
 	const arr = [];
@@ -22,7 +25,8 @@ function depthTraversal(option) {
 	const { gridNum, start, end, grid } = option;
 	grid[start].isVisited = true;
 	if (start === end) {
-		grid[start].isRoute = true;
+		currentPathPoint[start] = grid[start];
+		// grid[start].isRoute = true;
 		return endTag;
 	}
 	let isEnd = false;
@@ -38,7 +42,8 @@ function depthTraversal(option) {
 		}
 	});
 	if (isEnd) {
-		grid[start].isRoute = true;
+		currentPathPoint[start] = grid[start];
+		// grid[start].isRoute = true;
 		return endTag;
 	}
 }
@@ -71,38 +76,169 @@ function getRandomMaze({ gridNum, start, end }) {
 	return grid;
 }
 
-function getPath(start, gridList) {}
+function getTypeIndex(key) {
+	return classNameList.findIndex((k) => k === key);
+}
 
-function Maze({ gridNum }) {
-	const [ start, setStartGrid ] = useState(0);
-	const [ end ] = useState(gridNum * gridNum - 1);
-	const [ gridList, setGridList ] = useState([]);
-	useEffect(
-		() => {
-			setGridList(getRandomMaze({ gridNum, start, end }));
-		},
-		[ gridNum ]
-	);
-	return (
-		<div>
-			<ul className="list">
-				{map(gridList, (item, index) => {
-					let className = item.className.join(' ');
-					if (index === start) {
-						className += ' red';
-					}
-					if (index === end) {
-						className += ' black';
-					}
-					if (item.isRoute) {
-						className += ' gray';
-					}
-					return <li className={className} key={`${index}_${gridNum}`} />;
-				})}
-			</ul>
-			<div onClick={() => getPath(start, gridList)}>获取路径</div>
-		</div>
-	);
+class Maze extends Component {
+	constructor(props) {
+		super();
+		const { gridNum } = props;
+		this.state = {
+			start: 0,
+			end: gridNum * gridNum - 1,
+			showPath: 0,
+			gridList: []
+		};
+	}
+
+	componentDidMount() {
+		const { gridNum } = this.props;
+		const { start, end } = this.state;
+		this.setState({
+			gridList: getRandomMaze({ gridNum, start, end })
+		});
+
+		document.addEventListener('keydown', this.keydοwn);
+	}
+	componentDidUpdate(preProps) {
+		const { gridNum } = this.props;
+		if (preProps.gridNum !== gridNum) {
+			this.reset();
+		}
+	}
+	componentWillUnmount() {
+		document.removeEventListener('keydown', this.keydοwn);
+	}
+
+	render() {
+		const { gridNum } = this.props;
+		const { gridList, start, end, showPath } = this.state;
+		return (
+			<div>
+				<ul className="list" style={{ width: gridNum * 20 }}>
+					{map(gridList, (item, index) => {
+						let className = item.className.join(' ');
+						if (index === start) {
+							className += ' red';
+						}
+						if (index === end) {
+							className += ' black';
+						}
+						if (showPath && item.isPath) {
+							className += ' gray';
+						}
+						return <li className={className} key={`${index}_${gridNum}`} />;
+					})}
+				</ul>
+				<div className="info">
+					<p>当前等级：{gridNum}(最高：100)</p>
+					<p> 操作键：w,a,s,d </p>
+					<div className="btn" onClick={this.getPath}>
+						{showPath ? '移除路径显示' : '获取路径'}
+					</div>
+					<div className="input">
+						调整当前等级
+						<input ref={(dom) => (this.input = dom)} type="number" />
+						<button onClick={this.confirm}>确定</button>
+					</div>
+				</div>
+			</div>
+		);
+	}
+
+	getPath = () => {
+		const { gridNum } = this.props;
+		const { gridList, start, end, showPath } = this.state;
+
+		if (showPath)
+			return this.setState({
+				showPath: false
+			});
+		const loop = function(index) {
+			if (index === end) {
+				currentPathPoint[index].isPath = true;
+				return endTag;
+			}
+
+			if (!currentPathPoint[index]) return;
+			const { className, _path } = currentPathPoint[index];
+			if (_path) return;
+			currentPathPoint[index]['_path'] = true;
+			for (let i = 0; i < className.length; i++) {
+				const typeIndex = getTypeIndex(className[i]);
+
+				const next = getNextGridIndex({ gridNum, start: index }, typeIndex);
+				const temp = loop(next);
+				if (temp === endTag) {
+					currentPathPoint[index].isPath = true;
+					return endTag;
+				}
+			}
+		};
+		Object.keys(currentPathPoint).forEach((item) => {
+			currentPathPoint[item].isPath = false;
+			currentPathPoint[item]._path = false;
+		});
+		loop(start);
+		this.setState({
+			showPath: true
+		});
+	};
+
+	confirm = () => {
+		const { setgridNum } = this.props;
+		if (!this.input || !this.input.value) return;
+		const value = Math.abs(Math.floor(Number(this.input.value)));
+		setgridNum(value);
+	};
+
+	keydοwn = (event) => {
+		const { keyCode } = event;
+		if (keyCode === undefined) return;
+
+		switch (keyCode) {
+			// w
+			case 87:
+				return this.move('t');
+			// s
+			case 83:
+				return this.move('b');
+			// a
+			case 65:
+				return this.move('l');
+			// d
+			case 68:
+				return this.move('r');
+		}
+	};
+
+	move = (type) => {
+		const { gridNum, setgridNum } = this.props;
+		const { gridList, start, end, showPath } = this.state;
+		if (gridList[start].className.includes(type)) {
+			const next = getNextGridIndex({ gridNum, start }, getTypeIndex(type));
+			if (next === end) {
+				alert('恭喜通过关卡！');
+				setgridNum(gridNum + 1);
+				// onComplate();
+				// this.reset();
+			} else {
+				this.setState({ start: next });
+			}
+		}
+	};
+	reset = () => {
+		const { gridNum } = this.props;
+		currentPathPoint = {};
+		const start = 0;
+		const end = gridNum * gridNum - 1;
+		this.setState({
+			gridList: getRandomMaze({ gridNum, start, end }),
+			start,
+			end
+		});
+	};
 }
 
 export default Maze;
